@@ -5,7 +5,7 @@ using StudentManagement.Agent;
 using StudentManagement.Agent.Extensions;
 
 var logger = LogManager.Setup()
-    .LoadConfigurationFromAppSettings()
+    .LoadConfigurationFromFile("nlog.config")
     .GetCurrentClassLogger();
 
 try

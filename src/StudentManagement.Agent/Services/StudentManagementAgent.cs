@@ -8,9 +8,9 @@ namespace StudentManagement.Agent.Services;
 
 public sealed class StudentManagementAgent
 {
-    private readonly IChatClient _chat;
+    private readonly IChatClient? _chat;
     private readonly AzureDocumentIntelligenceService _ocr;
-    private readonly McpClient _mcpClient;
+    private readonly Lazy<Task<McpClient>> _mcpClientFactory;
     private readonly ILogger<StudentManagementAgent> _logger;
 
     // Session bazlı in-memory geçmiş — sonraki fazda Redis'e taşınacak
@@ -22,14 +22,14 @@ public sealed class StudentManagementAgent
     private const int MaxMessagesPerSession = 20;
 
     public StudentManagementAgent(
-        IChatClient chat,
         AzureDocumentIntelligenceService ocr,
-        McpClient mcpClient,
-        ILogger<StudentManagementAgent> logger)
+        Lazy<Task<McpClient>> mcpClientFactory,
+        ILogger<StudentManagementAgent> logger,
+        IChatClient? chat = null)
     {
         _chat = chat;
         _ocr = ocr;
-        _mcpClient = mcpClient;
+        _mcpClientFactory = mcpClientFactory;
         _logger = logger;
     }
 
@@ -70,6 +70,9 @@ public sealed class StudentManagementAgent
         history.Add(new ChatMessage(ChatRole.User, userText));
 
         // 4. LLM'e gönder — FunctionInvocationMiddleware tool seçimi ve çağrımı otomatik yapar
+        if (_chat is null)
+            return new AgentResponse(Reply: "Azure OpenAI yapılandırılmamış. appsettings.Development.json dosyasını kontrol edin.", OcrMetadata: ocrMetadata);
+
         _logger.LogInformation("LLM çağrısı başlatılıyor. Session: {SessionId}", request.SessionId);
 
         var options = new ChatOptions
@@ -104,7 +107,8 @@ public sealed class StudentManagementAgent
             if (_cachedTools is null)
             {
                 _logger.LogInformation("MCP araçları yükleniyor...");
-                _cachedTools = await _mcpClient.ListToolsAsync(cancellationToken: ct);
+                var mcpClient = await _mcpClientFactory.Value;
+                _cachedTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
                 _logger.LogInformation("{Count} MCP aracı yüklendi.", _cachedTools.Count);
             }
 

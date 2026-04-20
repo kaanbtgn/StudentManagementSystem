@@ -39,10 +39,22 @@ try
 
     builder.Services
         .AddCors(options => options.AddPolicy("FrontendPolicy", policy =>
-            policy.WithOrigins("http://localhost:3000", builder.Configuration["AllowedOrigin"] ?? "")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials()))
+        {
+            if (builder.Environment.IsDevelopment())
+            {
+                policy.SetIsOriginAllowed(_ => true)
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            }
+            else
+            {
+                policy.WithOrigins(builder.Configuration["AllowedOrigin"] ?? "https://studentmanagement.example.com")
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            }
+        }))
         .AddRateLimiter(options =>
         {
             options.AddFixedWindowLimiter("api", o =>

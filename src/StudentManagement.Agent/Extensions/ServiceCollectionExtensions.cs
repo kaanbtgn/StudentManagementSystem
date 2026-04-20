@@ -14,47 +14,52 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         // ── Azure Document Intelligence ──────────────────────────────────
-        services.AddSingleton(_ => new DocumentIntelligenceClient(
-            new Uri(configuration["AzureDocumentIntelligence:Endpoint"]
-                ?? throw new InvalidOperationException("AzureDocumentIntelligence:Endpoint eksik.")),
-            new AzureKeyCredential(configuration["AzureDocumentIntelligence:ApiKey"]
-                ?? throw new InvalidOperationException("AzureDocumentIntelligence:ApiKey eksik."))));
+        var docIntelEndpoint = configuration["AzureDocumentIntelligence:Endpoint"];
+        var docIntelKey = configuration["AzureDocumentIntelligence:ApiKey"];
+
+        if (!string.IsNullOrWhiteSpace(docIntelEndpoint) && !string.IsNullOrWhiteSpace(docIntelKey))
+        {
+            services.AddSingleton(_ => new DocumentIntelligenceClient(
+                new Uri(docIntelEndpoint),
+                new AzureKeyCredential(docIntelKey)));
+        }
 
         services.AddScoped<AzureDocumentIntelligenceService>();
 
         // ── McpClient — HTTP transport üzerinden MCP Server'a bağlanır ─
-        services.AddSingleton<McpClient>(_ =>
+        // Lazy<T> ile sarılıyor: DI registration anında değil, ilk kullanımda bağlantı kurulur
+        services.AddSingleton<Lazy<Task<McpClient>>>(_ =>
         {
             var mcpUrl = configuration["Mcp:ServerUrl"]
                 ?? throw new InvalidOperationException("Mcp:ServerUrl eksik.");
 
-            var transport = new HttpClientTransport(new HttpClientTransportOptions
+            return new Lazy<Task<McpClient>>(() =>
             {
-                Endpoint = new Uri(mcpUrl.TrimEnd('/') + "/mcp"),
+                var transport = new HttpClientTransport(new HttpClientTransportOptions
+                {
+                    Endpoint = new Uri(mcpUrl.TrimEnd('/') + "/mcp"),
+                });
+                return McpClient.CreateAsync(transport);
             });
-
-            return McpClient.CreateAsync(transport).GetAwaiter().GetResult();
         });
 
         // ── IChatClient — Azure OpenAI + FunctionInvocation middleware ──
-        // AzureOpenAIClient  → Azure.AI.OpenAI paketi
-        // .AsChatClient()    → Microsoft.Extensions.AI.OpenAI paketi
-        // .UseFunctionInvocation() → Microsoft.Extensions.AI (tool calling döngüsü)
-        services.AddSingleton<IChatClient>(_ =>
-            new AzureOpenAIClient(
-                new Uri(configuration["AzureOpenAI:Endpoint"] 
-                    ?? throw new InvalidOperationException("AzureOpenAI:Endpoint eksik.")),
-                new AzureKeyCredential(configuration["AzureOpenAI:ApiKey"] 
-                    ?? throw new InvalidOperationException("AzureOpenAI:ApiKey eksik.")))
-            // 1. Önce Azure'un ChatClient'ını deployment adıyla alıyoruz
-            .GetChatClient(configuration["AzureOpenAI:DeploymentName"] 
-                ?? throw new InvalidOperationException("AzureOpenAI:DeploymentName eksik."))
-            // 2. Sonra Microsoft.Extensions.AI uyumlu IChatClient formatına çeviriyoruz
-            .AsIChatClient()
-            // 3. Builder ile pipeline'ı kuruyoruz
-            .AsBuilder()
-            .UseFunctionInvocation()
-            .Build());
+        var openAiEndpoint = configuration["AzureOpenAI:Endpoint"];
+        var openAiKey = configuration["AzureOpenAI:ApiKey"];
+        var deploymentName = configuration["AzureOpenAI:DeploymentName"];
+
+        if (!string.IsNullOrWhiteSpace(openAiEndpoint) && !string.IsNullOrWhiteSpace(openAiKey) && !string.IsNullOrWhiteSpace(deploymentName))
+        {
+            services.AddSingleton<IChatClient>(_ =>
+                new AzureOpenAIClient(
+                    new Uri(openAiEndpoint),
+                    new AzureKeyCredential(openAiKey))
+                .GetChatClient(deploymentName)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .Build());
+        }
         // ── Orkestratör ─────────────────────────────────────────────────
         services.AddScoped<StudentManagementAgent>();
 
