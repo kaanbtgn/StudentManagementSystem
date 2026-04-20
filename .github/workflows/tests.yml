@@ -1,0 +1,70 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore tests/StudentManagement.UnitTests/StudentManagement.UnitTests.csproj
+
+      - name: Build
+        run: dotnet build tests/StudentManagement.UnitTests/StudentManagement.UnitTests.csproj --no-restore
+
+      - name: Run unit tests with coverage
+        run: |
+          dotnet test tests/StudentManagement.UnitTests/StudentManagement.UnitTests.csproj \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage
+          path: coverage/**/*.xml
+          retention-days: 7
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    # Docker is available on ubuntu-latest — required for Testcontainers
+    needs: unit-tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore tests/StudentManagement.IntegrationTests/StudentManagement.IntegrationTests.csproj
+
+      - name: Build
+        run: dotnet build tests/StudentManagement.IntegrationTests/StudentManagement.IntegrationTests.csproj --no-restore
+
+      - name: Run integration tests
+        run: |
+          dotnet test tests/StudentManagement.IntegrationTests/StudentManagement.IntegrationTests.csproj \
+            --no-build \
+            --logger "console;verbosity=normal"
+        env:
+          # Testcontainers uses Docker socket — no extra config needed on ubuntu-latest
+          DOTNET_ENVIRONMENT: Test

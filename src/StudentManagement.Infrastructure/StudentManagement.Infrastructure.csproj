@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StudentManagement.Application\StudentManagement.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="8.*" />
+    <PackageReference Include="MongoDB.Driver" Version="3.*" />
+    <PackageReference Include="NLog.Mongo" Version="5.1.0" />
+    <PackageReference Include="NLog.Web.AspNetCore" Version="5.*" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.*" />
+    <PackageReference Include="StackExchange.Redis" Version="2.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="StudentManagement.IntegrationTests" />
+    <InternalsVisibleTo Include="StudentManagement.UnitTests" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
