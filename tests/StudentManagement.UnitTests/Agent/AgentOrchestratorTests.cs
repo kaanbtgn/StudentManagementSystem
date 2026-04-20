@@ -33,10 +33,10 @@ public sealed class AgentOrchestratorTests
 
     private StudentManagementAgent BuildAgent() =>
         new(
-            _chatClient.Object,
             null!,  // AzureDocumentIntelligenceService — only called when request.File != null
-            null!,  // McpClient — bypassed because _cachedTools is pre-set
-            NullLogger<StudentManagementAgent>.Instance);
+            new Lazy<Task<McpClient>>(() => Task.FromResult<McpClient>(null!)),  // bypassed because _cachedTools is pre-set
+            NullLogger<StudentManagementAgent>.Instance,
+            _chatClient.Object);
 
     // ── helpers ──────────────────────────────────────────────────────────
 
