@@ -37,7 +37,7 @@ public sealed class StudentsController : ControllerBase
         CancellationToken ct = default)
     {
         var results = await _students.FuzzySearchAsync(q, threshold, ct);
-        bool requiresConfirmation = results.Count == 0 || results[0].Score < 0.90;
+        bool requiresConfirmation = results.Count == 0 || results[0].Score < 0.75;
 
         return Ok(new
         {

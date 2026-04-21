@@ -12,17 +12,11 @@ namespace StudentManagement.Api.Controllers;
 public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentCacheService _cache;
-    private readonly IConfiguration _config;
 
-    public DocumentsController(IDocumentCacheService cache, IConfiguration config)
-    {
-        _cache = cache;
-        _config = config;
-    }
+    public DocumentsController(IDocumentCacheService cache) => _cache = cache;
 
     /// <summary>
     /// MCP Server tarafından üretilen belgeyi cache'e yazar.
-    /// X-Internal-Api-Key header'ı ile korunur.
     /// </summary>
     [HttpPost("api/internal/docs/store")]
     [DisableRequestSizeLimit]
@@ -30,14 +24,6 @@ public sealed class DocumentsController : ControllerBase
     [ApiExplorerSettings(GroupName = "internal")]
     public async Task<IActionResult> StoreAsync(IFormFile file, CancellationToken ct)
     {
-        var apiKey = _config["InternalApi:ApiKey"];
-        if (!string.IsNullOrEmpty(apiKey))
-        {
-            if (!Request.Headers.TryGetValue("X-Internal-Api-Key", out var provided) ||
-                provided != apiKey)
-                return Unauthorized();
-        }
-
         if (file is null || file.Length == 0)
             return BadRequest("Dosya bulunamadı veya boş.");
 

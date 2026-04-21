@@ -39,9 +39,9 @@ internal sealed class StudentRepository : IStudentRepository
         // Adım 1: DB'de filtrele + skorla — GIN trigram indeksini kullanır, tüm tablo okunmaz.
         var idScores = await _context.Database
             .SqlQuery<FuzzyRow>($"""
-                SELECT "Id", similarity(first_name || ' ' || last_name, {query}) AS "Score"
+                SELECT "Id", similarity("FirstName" || ' ' || "LastName", {query}) AS "Score"
                 FROM students
-                WHERE similarity(first_name || ' ' || last_name, {query}) >= {threshold}
+                WHERE similarity("FirstName" || ' ' || "LastName", {query}) >= {threshold}
                   AND "IsAnonymized" = false
                 ORDER BY "Score" DESC
                 LIMIT 10
