@@ -68,7 +68,7 @@ public sealed class DocumentsController : ControllerBase
         var sessionId = HttpContext.Items["SessionId"]?.ToString() ?? Guid.NewGuid().ToString("N");
         var tempPath = Path.Combine(
             Path.GetTempPath(),
-            $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}");
+            $"ocr_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}");
 
         await using (var stream = System.IO.File.Create(tempPath))
             await file.CopyToAsync(stream, ct);

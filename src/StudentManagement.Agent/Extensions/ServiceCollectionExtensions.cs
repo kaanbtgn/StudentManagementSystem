@@ -3,6 +3,8 @@ using Azure.AI.DocumentIntelligence;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
+using MongoDB.Driver;
+using StackExchange.Redis;
 using StudentManagement.Agent.Services;
 
 namespace StudentManagement.Agent.Extensions;
@@ -13,18 +15,57 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // ── Azure Document Intelligence ──────────────────────────────────
+        // ── Redis — hızlı cache (opsiyonel) ──────────────────────────────────
+        var redisConnStr = configuration.GetConnectionString("Redis");
+        var hasRedis = false;
+        if (!string.IsNullOrWhiteSpace(redisConnStr))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(_ =>
+                ConnectionMultiplexer.Connect(redisConnStr));
+            services.AddScoped<RedisSessionHistory>();
+            hasRedis = true;
+        }
+
+        // ── MongoDB — kalıcı session geçmişi ─────────────────────────────────
+        var mongoConnStr = configuration.GetConnectionString("Mongo");
+        var hasMongo = false;
+        if (!string.IsNullOrWhiteSpace(mongoConnStr))
+        {
+            var mongoUrl = MongoUrl.Create(mongoConnStr);
+            var mongoClient = new MongoClient(mongoUrl);
+            var mongoDb = mongoClient.GetDatabase(
+                mongoUrl.DatabaseName
+                ?? configuration["MongoDB:DatabaseName"]
+                ?? "StudentManagement");
+
+            services.AddSingleton<IMongoDatabase>(_ => mongoDb);
+            services.AddScoped<MongoSessionHistory>();
+            hasMongo = true;
+        }
+
+        // Composite: her ikisi varsa → dual-write; yalnızca biri varsa → tek provider
+        if (hasRedis && hasMongo)
+            services.AddScoped<ISessionHistory, CompositeSessionHistory>();
+        else if (hasRedis)
+            services.AddScoped<ISessionHistory>(sp => sp.GetRequiredService<RedisSessionHistory>());
+        else if (hasMongo)
+            services.AddScoped<ISessionHistory>(sp => sp.GetRequiredService<MongoSessionHistory>());
+
+        // ── Azure Document Intelligence (opsiyonel — yalnızca dosya yüklendiğinde kullanılır) ──
         var docIntelEndpoint = configuration["AzureDocumentIntelligence:Endpoint"];
         var docIntelKey = configuration["AzureDocumentIntelligence:ApiKey"];
 
-        if (!string.IsNullOrWhiteSpace(docIntelEndpoint) && !string.IsNullOrWhiteSpace(docIntelKey))
+        if (!string.IsNullOrWhiteSpace(docIntelEndpoint)
+            && !string.IsNullOrWhiteSpace(docIntelKey)
+            && Uri.TryCreate(docIntelEndpoint, UriKind.Absolute, out var docIntelUri)
+            && !docIntelUri.Host.Contains('<'))  // placeholder guard
         {
             services.AddSingleton(_ => new DocumentIntelligenceClient(
-                new Uri(docIntelEndpoint),
+                docIntelUri,
                 new AzureKeyCredential(docIntelKey)));
-        }
 
-        services.AddScoped<AzureDocumentIntelligenceService>();
+            services.AddScoped<AzureDocumentIntelligenceService>();
+        }
 
         // ── McpClient — HTTP transport üzerinden MCP Server'a bağlanır ─
         // Lazy<T> ile sarılıyor: DI registration anında değil, ilk kullanımda bağlantı kurulur

@@ -26,13 +26,7 @@ internal sealed class PrivacyService : IPrivacyService
         if (student.IsAnonymized)
             throw new AlreadyAnonymizedException(studentId);
 
-        var mask = $"[SİLİNDİ-{studentId.ToString()[..8]}]";
-
-        student.FirstName = mask;
-        student.LastName = mask;
-        student.Phone = null;
-        student.IsAnonymized = true;
-        student.UpdatedAt = DateTimeOffset.UtcNow;
+        student.Anonymize();
 
         await _studentRepository.UpdateAsync(student, ct);
 

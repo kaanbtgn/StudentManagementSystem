@@ -36,6 +36,24 @@ public sealed class Student
     public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>
+    /// Öğrenci verisini KVKK kapsamında anonimleştirir.
+    /// StudentNumber unique constraint'ini serbest bırakmak için de maskelenir;
+    /// böylece aynı numara yeni bir öğrenciye atanabilir.
+    /// </summary>
+    public void Anonymize()
+    {
+        var shortId = Id.ToString()[..8];
+        var mask    = $"[SİLİNDİ-{shortId}]";
+
+        FirstName      = mask;
+        LastName       = mask;
+        Phone          = null;
+        StudentNumber  = $"ANON-{shortId}";
+        IsAnonymized   = true;
+        UpdatedAt      = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
     /// Yeni bir <see cref="Student"/> örneği oluşturur.
     /// </summary>
     /// <param name="id">Benzersiz tanımlayıcı.</param>

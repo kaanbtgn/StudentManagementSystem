@@ -12,10 +12,14 @@ internal sealed class StudentRepository : IStudentRepository
     public StudentRepository(StudentDbContext context) => _context = context;
 
     public async Task<Student?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await _context.Students.FindAsync([id], ct);
+        => await _context.Students
+            .FirstOrDefaultAsync(s => s.Id == id && !s.IsAnonymized, ct);
 
     public async Task<IReadOnlyList<Student>> GetAllAsync(CancellationToken ct = default)
-        => await _context.Students.AsNoTracking().ToListAsync(ct);
+        => await _context.Students
+            .AsNoTracking()
+            .Where(s => !s.IsAnonymized)
+            .ToListAsync(ct);
 
     public async Task<Student?> GetByStudentNumberAsync(string studentNumber, CancellationToken ct = default)
         => await _context.Students
@@ -26,8 +30,9 @@ internal sealed class StudentRepository : IStudentRepository
     public async Task<IReadOnlyList<Student>> SearchByNameAsync(string searchTerm, CancellationToken ct = default)
         => await _context.Students
             .AsNoTracking()
-            .Where(s => EF.Functions.ILike(s.FirstName, $"%{searchTerm}%") ||
-                        EF.Functions.ILike(s.LastName, $"%{searchTerm}%"))
+            .Where(s => !s.IsAnonymized &&
+                        (EF.Functions.ILike(s.FirstName, $"%{searchTerm}%") ||
+                         EF.Functions.ILike(s.LastName, $"%{searchTerm}%")))
             .ToListAsync(ct);
 
     // pg_trgm similarity() — GIN indeksi ile tek DB round-trip, in-memory Levenshtein gerekmez.

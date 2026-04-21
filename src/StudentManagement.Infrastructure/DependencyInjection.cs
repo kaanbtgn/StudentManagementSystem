@@ -5,7 +5,6 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
-using StudentManagement.Application.Abstractions;
 using StudentManagement.Application.Interfaces;
 using StudentManagement.Domain.Repositories;
 using StudentManagement.Infrastructure.Cache;
@@ -45,9 +44,6 @@ public static class DependencyInjection
 
         // MongoDB (iş veritabanı)
         services.AddSingleton<MongoDbContext>();
-
-        // Cache — chat geçmişi için özel servis
-        services.AddScoped<ICacheService, RedisCacheService>();
 
         // IDistributedCache — mevcut multiplexer'ı yeniden kullanır (ikinci bağlantı açılmaz)
         services.AddSingleton<IDistributedCache>(sp =>

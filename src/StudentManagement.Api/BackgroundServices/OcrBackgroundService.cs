@@ -4,8 +4,11 @@ using StudentManagement.Application.Interfaces;
 
 namespace StudentManagement.Api.BackgroundServices;
 
-public sealed class OcrBackgroundService : BackgroundService
+public sealed class OcrBackgroundService : BackgroundService, IHostedLifecycleService
 {
+    // Uygulama başlarken bu prefix ile geçici dosya arayan pattern
+    private const string TempFilePattern = "ocr_*";
+
     private readonly Channel<OcrJob> _channel;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<OcrBackgroundService> _logger;
@@ -19,6 +22,30 @@ public sealed class OcrBackgroundService : BackgroundService
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
+
+    // Uygulama başlarken bir önceki çalışmadan kalan orphan temp dosyalarını temizle
+    public Task StartingAsync(CancellationToken cancellationToken)
+    {
+        var tempDir = Path.GetTempPath();
+        var orphans = Directory.GetFiles(tempDir, TempFilePattern);
+        foreach (var file in orphans)
+        {
+            try
+            {
+                File.Delete(file);
+                _logger.LogInformation("Orphan temp dosyası silindi: {File}", file);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Orphan temp dosyası silinemedi ({File}): {Error}", file, ex.Message);
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

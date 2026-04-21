@@ -71,12 +71,13 @@ try
     // MongoDB AuditLogs index'lerini oluştur (idempotent — varsa atlar)
     await app.EnsureAuditIndexes();
 
-    // SessionId scope korelasyonu — tüm diğer middleware'lerden önce
+    // CORS — OPTIONS preflight'ın başka middleware'e takılmaması için en önce
+    app.UseCors("FrontendPolicy");
+
+    // SessionId scope korelasyonu
     app.UseMiddleware<SessionIdMiddleware>();
     app.UseMiddleware<GlobalExceptionMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
-
-    app.UseCors("FrontendPolicy");
     app.UseRateLimiter();
     app.MapControllers();
     app.MapHubs();    // Infrastructure/Realtime/HubEndpointExtensions

@@ -9,9 +9,13 @@ namespace StudentManagement.Api.Controllers;
 public sealed class StudentsController : ControllerBase
 {
     private readonly IStudentService _students;
+    private readonly IPrivacyService _privacy;
 
-    public StudentsController(IStudentService students)
-        => _students = students;
+    public StudentsController(IStudentService students, IPrivacyService privacy)
+    {
+        _students = students;
+        _privacy = privacy;
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetAllAsync(CancellationToken ct)
@@ -62,10 +66,15 @@ public sealed class StudentsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Öğrenciyi hard-delete yerine KVKK kapsamında anonimleştirir.
+    /// Ad/soyad/telefon maskelenir, StudentNumber serbest bırakılır.
+    /// Kayıt DB'de IsAnonymized=true olarak kalır; listede görünmez.
+    /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken ct)
     {
-        await _students.DeleteAsync(id, ct);
+        await _privacy.AnonymizeStudentAsync(id, ct);
         return NoContent();
     }
 }
