@@ -18,25 +18,26 @@ public sealed class AgentOrchestratorTests
 {
     private readonly Mock<IChatClient> _chatClient = new();
 
-    public AgentOrchestratorTests()
+    private StudentManagementAgent BuildAgent()
     {
-        // Pre-set the static _cachedTools to an empty list so the agent never
-        // reaches McpClient.ListToolsAsync (McpClient is passed as null! below).
-        var toolsField = typeof(StudentManagementAgent)
-            .GetField("_cachedTools", BindingFlags.NonPublic | BindingFlags.Static)!;
+        // Constructor: (Lazy<McpClient>, ILogger, IChatClient?, AzureDocumentIntelligenceService?)
+        var agent = new StudentManagementAgent(
+            new Lazy<Task<McpClient>>(() => Task.FromResult<McpClient>(null!)),
+            NullLogger<StudentManagementAgent>.Instance,
+            chat: _chatClient.Object,
+            ocr: null);
 
-        if (toolsField.GetValue(null) is null)
-        {
-            toolsField.SetValue(null, (IList<McpClientTool>)new List<McpClientTool>());
-        }
+        // Pre-set the instance _cachedTools to an empty list so the agent never
+        // reaches McpClient.ListToolsAsync (McpClient is null above).
+        typeof(StudentManagementAgent)
+            .GetField("_cachedTools", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(agent, (IList<McpClientTool>)new List<McpClientTool>());
+
+        return agent;
     }
 
-    private StudentManagementAgent BuildAgent() =>
-        new(
-            null!,  // AzureDocumentIntelligenceService — only called when request.File != null
-            new Lazy<Task<McpClient>>(() => Task.FromResult<McpClient>(null!)),  // bypassed because _cachedTools is pre-set
-            NullLogger<StudentManagementAgent>.Instance,
-            _chatClient.Object);
+    private static AgentRequest MakeRequest(string message) =>
+        new(message, []);
 
     // ── helpers ──────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ public sealed class AgentOrchestratorTests
         const string question = "Hangi öğrencinin kaydını güncellemek istiyorsunuz?";
         SetupChatClientReply(question);
         var agent = BuildAgent();
-        var request = new AgentRequest("session-unclear", "güncelle lütfen");
+        var request = MakeRequest("güncelle lütfen");
 
         var response = await agent.ProcessAsync(request, CancellationToken.None);
 
@@ -77,7 +78,7 @@ public sealed class AgentOrchestratorTests
         const string expectedReply = "Ali Veli'nin notu 90 olarak güncellendi.";
         SetupChatClientReply(expectedReply);
         var agent = BuildAgent();
-        var request = new AgentRequest("session-normal", "Ali Veli notunu 90 yap");
+        var request = MakeRequest("Ali Veli notunu 90 yap");
 
         var response = await agent.ProcessAsync(request, CancellationToken.None);
 
@@ -102,7 +103,7 @@ public sealed class AgentOrchestratorTests
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("LLM bağlantısı başarısız"));
         var agent = BuildAgent();
-        var request = new AgentRequest("session-throw", "bir şey yap");
+        var request = MakeRequest("bir şey yap");
 
         Func<Task> act = () => agent.ProcessAsync(request, CancellationToken.None);
 

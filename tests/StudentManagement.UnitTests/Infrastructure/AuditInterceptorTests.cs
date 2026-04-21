@@ -79,7 +79,7 @@ public sealed class AuditInterceptorTests
         _collection.Reset();
         var updateCaptured = CaptureInsertedEntries();
 
-        student.FirstName = "Mehmet";
+        student.Update("Mehmet", null, null, null);
         ctx.Students.Update(student);
         await ctx.SaveChangesAsync();
 
