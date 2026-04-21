@@ -42,6 +42,8 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["Agent:BaseUrl"]               = "http://localhost:9999",
                 ["AzureDocumentIntelligence:Endpoint"] = "https://placeholder.cognitiveservices.azure.com/",
                 ["AzureDocumentIntelligence:ApiKey"]   = "placeholder-key",
+                // Satisfy CORS fail-closed check — test runner has no browser origin requirement
+                ["AllowedOrigin"]               = "http://localhost",
             });
         });
 
