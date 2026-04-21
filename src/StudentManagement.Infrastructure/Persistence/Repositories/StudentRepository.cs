@@ -30,6 +30,44 @@ internal sealed class StudentRepository : IStudentRepository
                         EF.Functions.ILike(s.LastName, $"%{searchTerm}%"))
             .ToListAsync(ct);
 
+    // pg_trgm similarity() — GIN indeksi ile tek DB round-trip, in-memory Levenshtein gerekmez.
+    // similarity(first_name || ' ' || last_name, @query) normalleştirilmiş trigram örtüşmesini kullanır.
+    // Threshold düşük tutulur (0.3) çünkü OCR çıktısı harf düşürme/ekleme içerebilir.
+    public async Task<IReadOnlyList<(Student Student, double Score)>> FuzzySearchByNameAsync(
+        string query, double threshold = 0.3, CancellationToken ct = default)
+    {
+        // Adım 1: DB'de filtrele + skorla — GIN trigram indeksini kullanır, tüm tablo okunmaz.
+        var idScores = await _context.Database
+            .SqlQuery<FuzzyRow>($"""
+                SELECT "Id", similarity(first_name || ' ' || last_name, {query}) AS "Score"
+                FROM students
+                WHERE similarity(first_name || ' ' || last_name, {query}) >= {threshold}
+                  AND "IsAnonymized" = false
+                ORDER BY "Score" DESC
+                LIMIT 10
+                """)
+            .ToListAsync(ct);
+
+        if (idScores.Count == 0)
+            return [];
+
+        // Adım 2: Eşleşen ID'ler ile entity yükle — PK üzerinde IN sorgusu, çok hızlı.
+        var ids = idScores.Select(r => r.Id).ToList();
+        var studentMap = await _context.Students
+            .AsNoTracking()
+            .Where(s => ids.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, ct);
+
+        // Sırayı (en yüksek skor önce) ve skoru koru; Zip yoktur, dictionary join güvenlidir.
+        return idScores
+            .Where(r => studentMap.ContainsKey(r.Id))
+            .Select(r => (Student: studentMap[r.Id], Score: r.Score))
+            .ToList();
+    }
+
+    private sealed record FuzzyRow(Guid Id, double Score);
+
+
     public async Task<Student> AddAsync(Student student, CancellationToken ct = default)
     {
         await _context.Students.AddAsync(student, ct);

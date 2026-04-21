@@ -9,13 +9,9 @@ namespace StudentManagement.Api.Controllers;
 public sealed class StudentsController : ControllerBase
 {
     private readonly IStudentService _students;
-    private readonly IFuzzyMatcher _fuzzy;
 
-    public StudentsController(IStudentService students, IFuzzyMatcher fuzzy)
-    {
-        _students = students;
-        _fuzzy = fuzzy;
-    }
+    public StudentsController(IStudentService students)
+        => _students = students;
 
     [HttpGet]
     public async Task<IActionResult> GetAllAsync(CancellationToken ct)
@@ -30,12 +26,31 @@ public sealed class StudentsController : ControllerBase
     public async Task<IActionResult> SearchAsync([FromQuery] string term, CancellationToken ct)
         => Ok(await _students.SearchAsync(term, ct));
 
+    /// <summary>
+    /// pg_trgm similarity() ile DB tarafında bulanık ad araması yapar.
+    /// candidates listesine gerek yoktur; eşleşme ve skorlama tek SQL sorgusunda yapılır.
+    /// </summary>
+    [HttpGet("fuzzy-search")]
+    public async Task<IActionResult> FuzzySearchAsync(
+        [FromQuery] string q,
+        [FromQuery] double threshold = 0.3,
+        CancellationToken ct = default)
+    {
+        var results = await _students.FuzzySearchAsync(q, threshold, ct);
+        bool requiresConfirmation = results.Count == 0 || results[0].Score < 0.90;
+
+        return Ok(new
+        {
+            matches = results.Select(r => new { student = r.Student, score = r.Score }),
+            requiresConfirmation
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateAsync(
         [FromBody] CreateStudentRequest req, CancellationToken ct)
     {
         var dto = await _students.CreateAsync(req, ct);
-        // ASP.NET Core strips the "Async" suffix from action names by default
         return CreatedAtAction("GetById", new { id = dto.Id }, dto);
     }
 
@@ -53,31 +68,4 @@ public sealed class StudentsController : ControllerBase
         await _students.DeleteAsync(id, ct);
         return NoContent();
     }
-
-    /// <summary>
-    /// OCR/Agent çıktısından gelen ismi DB adaylarıyla bulanık eşleştirir.
-    /// MCP tool, requiresConfirmation=true döndüğünde kullanıcıya "X kişisi mi?" diye sorar,
-    /// onay alınmadan mutasyon yapan araçları çağırmaz.
-    /// </summary>
-    [HttpPost("fuzzy-match")]
-    public IActionResult FuzzyMatchAsync([FromBody] FuzzyMatchRequest req)
-    {
-        var matches = _fuzzy.FindBestMatches(req.Query, req.Candidates, req.Threshold);
-        bool requiresConfirmation = !matches.Any() || matches[0].Score < 0.90;
-
-        return Ok(new FuzzyMatchResponse(
-            matches.Select(m => new FuzzyMatchItem(m.Value, m.Score)).ToList(),
-            requiresConfirmation));
-    }
 }
-
-public sealed record FuzzyMatchRequest(
-    string Query,
-    IEnumerable<string> Candidates,
-    double Threshold = 0.75);
-
-public sealed record FuzzyMatchItem(string Value, double Score);
-
-public sealed record FuzzyMatchResponse(
-    IReadOnlyList<FuzzyMatchItem> Matches,
-    bool RequiresConfirmation);

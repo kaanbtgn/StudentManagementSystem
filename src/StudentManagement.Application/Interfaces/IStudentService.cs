@@ -7,6 +7,7 @@ public interface IStudentService
     Task<StudentDto> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<StudentDto>> GetAllAsync(CancellationToken ct = default);
     Task<IReadOnlyList<StudentDto>> SearchAsync(string term, CancellationToken ct = default);
+    Task<IReadOnlyList<FuzzyStudentMatch>> FuzzySearchAsync(string query, double threshold = 0.3, CancellationToken ct = default);
     Task<StudentDto> CreateAsync(CreateStudentRequest request, CancellationToken ct = default);
     Task<StudentDto> UpdateAsync(Guid id, UpdateStudentRequest request, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);

@@ -19,6 +19,13 @@ public interface IStudentRepository
     /// <summary>Ad veya soyad üzerinde arama yaparak eşleşen öğrencileri döndürür.</summary>
     Task<IReadOnlyList<Student>> SearchByNameAsync(string searchTerm, CancellationToken ct = default);
 
+    /// <summary>
+    /// pg_trgm similarity() ile bulanık ad araması yapar; GIN indeksini kullanır.
+    /// Her sonuçla birlikte 0–1 arasında benzerlik skoru döner.
+    /// </summary>
+    Task<IReadOnlyList<(Student Student, double Score)>> FuzzySearchByNameAsync(
+        string query, double threshold = 0.3, CancellationToken ct = default);
+
     /// <summary>Yeni öğrenciyi depoya ekler ve eklenen kaydı döndürür.</summary>
     Task<Student> AddAsync(Student student, CancellationToken ct = default);
 

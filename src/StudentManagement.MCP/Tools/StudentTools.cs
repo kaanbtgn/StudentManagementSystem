@@ -69,20 +69,19 @@ public sealed class StudentTools
 
     [McpServerTool]
     [Description(
-        "OCR veya kullanıcı girdisinden gelen ismi veritabanı adaylarıyla bulanık eşleştirir. " +
+        "OCR veya kullanıcı girdisinden gelen ismi doğrudan veritabanında pg_trgm similarity ile arar. " +
+        "candidates listesi gerekmez; eşleşme ve skorlama DB tarafında GIN indeksiyle yapılır. " +
         "Sonuçta requiresConfirmation true ise en iyi eşleşmeyi kullanıcıya göster ve onay iste. " +
         "Onay alınmadan UpdateStudent veya DeleteStudent çağırma.")]
     public async Task<string> FuzzyMatchStudents(
         [Description("Eşleştirilecek öğrenci adı")]
         string query,
-        [Description("Aday öğrenci adları listesi (SearchStudents sonucundan alınır)")]
-        IEnumerable<string> candidates,
-        [Description("Minimum benzerlik eşiği (0.0–1.0). Varsayılan: 0.75")]
-        double threshold = 0.75,
+        [Description("Minimum benzerlik eşiği (0.0–1.0). Varsayılan: 0.3. OCR için düşük tutulmalı.")]
+        double threshold = 0.3,
         CancellationToken ct = default)
     {
-        var body = new { query, candidates, threshold };
-        var response = await _http.PostAsJsonAsync("api/students/fuzzy-match", body, ct);
+        var response = await _http.GetAsync(
+            $"api/students/fuzzy-search?q={Uri.EscapeDataString(query)}&threshold={threshold}", ct);
         return await response.Content.ReadAsStringAsync(ct);
     }
 }

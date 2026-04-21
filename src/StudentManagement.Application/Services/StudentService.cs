@@ -38,6 +38,15 @@ internal sealed class StudentService : IStudentService
         return students.Select(Map).ToList();
     }
 
+    public async Task<IReadOnlyList<FuzzyStudentMatch>> FuzzySearchAsync(
+        string query, double threshold = 0.3, CancellationToken ct = default)
+    {
+        var results = await _studentRepository.FuzzySearchByNameAsync(query, threshold, ct);
+        return results
+            .Select(r => new FuzzyStudentMatch(Map(r.Student), r.Score))
+            .ToList();
+    }
+
     public async Task<StudentDto> CreateAsync(CreateStudentRequest request, CancellationToken ct = default)
     {
         var existing = await _studentRepository.GetByStudentNumberAsync(request.StudentNumber, ct);
