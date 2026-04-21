@@ -27,6 +27,7 @@ try
     builder.Services
         .AddApplication()
         .AddInfrastructure(builder.Configuration)   // AddSignalR + IRealtimeNotificationService burada
+        .AddHttpContextAccessor()
         .AddControllers();
 
     // OCR arka plan işleme — Channel tabanlı kuyruk
@@ -42,9 +43,21 @@ try
         {
             var allowedOrigin = builder.Configuration["AllowedOrigin"];
             if (!string.IsNullOrWhiteSpace(allowedOrigin) && allowedOrigin != "*")
+            {
                 policy.WithOrigins(allowedOrigin).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+            }
+            else if (builder.Environment.IsDevelopment())
+            {
+                // Development: localhost varyantlarına izin ver
+                policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://localhost:5000")
+                      .AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+            }
             else
-                policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+            {
+                // Production'da AllowedOrigin zorunlu — yanlış config'e karşı fail-closed
+                throw new InvalidOperationException(
+                    "AllowedOrigin must be configured in production. Set the 'AllowedOrigin' environment variable.");
+            }
         }))
         .AddRateLimiter(options =>
         {
@@ -79,7 +92,7 @@ try
     app.UseMiddleware<GlobalExceptionMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
     app.UseRateLimiter();
-    app.MapControllers();
+    app.MapControllers().RequireRateLimiting("api");
     app.MapHubs();    // Infrastructure/Realtime/HubEndpointExtensions
     app.MapOpenApi();
     app.MapScalarApiReference();

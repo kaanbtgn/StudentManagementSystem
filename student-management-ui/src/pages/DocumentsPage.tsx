@@ -1,27 +1,18 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { FileUploadDropzone } from '@/components/molecules/FileUploadDropzone';
 import { OcrProgressBar } from '@/components/molecules/OcrProgressBar';
 import { useOcrStore } from '@/store/ocrStore';
 import { documentApi } from '@/api/documentApi';
-import { Button } from '@/components/atoms/Button';
+import { useSignalR } from '@/hooks/useSignalR';
 
 export function DocumentsPage() {
-  const { resultJson, isActive } = useOcrStore();
-  const [fileId, setFileId] = useState<string | null>(null);
+  const { resultJson, isActive, error } = useOcrStore();
+  const sessionId = useMemo(() => crypto.randomUUID(), []);
 
-  const handleFileSelected = (_file: File) => {
-    setFileId(null);
-  };
+  useSignalR(sessionId);
 
-  const handleDownload = async () => {
-    if (!fileId) return;
-    const blob = await documentApi.download(fileId);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileId;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleFileSelected = async (file: File) => {
+    await documentApi.uploadAsync(file, sessionId);
   };
 
   return (
@@ -38,15 +29,14 @@ export function DocumentsPage() {
         </div>
       )}
 
+      {error && (
+        <p className="mb-4 text-sm text-red-600">{error}</p>
+      )}
+
       {resultJson && (
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-700">OCR Sonucu</h2>
-            {fileId && (
-              <Button size="sm" variant="secondary" onClick={handleDownload}>
-                İndir
-              </Button>
-            )}
           </div>
           <pre className="overflow-x-auto text-xs text-gray-600 whitespace-pre-wrap">
             {typeof resultJson === 'string' ? resultJson : JSON.stringify(resultJson, null, 2)}

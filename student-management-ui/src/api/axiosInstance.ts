@@ -1,13 +1,5 @@
 import axios from 'axios';
-
-function getOrCreateSessionId(): string {
-  let sessionId = localStorage.getItem('sessionId');
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    localStorage.setItem('sessionId', sessionId);
-  }
-  return sessionId;
-}
+import { getCurrentSessionId } from '@/store/sessionStore';
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -17,8 +9,10 @@ const axiosInstance = axios.create({
 });
 
 axiosInstance.interceptors.request.use((config) => {
-  const sessionId = getOrCreateSessionId();
-  config.headers['X-Session-Id'] = sessionId;
+  const sessionId = getCurrentSessionId();
+  if (sessionId) {
+    config.headers['X-Session-Id'] = sessionId;
+  }
   return config;
 });
 

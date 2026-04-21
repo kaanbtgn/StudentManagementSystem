@@ -78,7 +78,7 @@ export function StudentTable({ onEdit, onDelete, onSelect }: StudentTableProps) 
       {deletingId && (
         <ConfirmationDialog
           title="Öğrenciyi Sil"
-          description="Bu öğrenciyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
+          description="Bu öğrencinin kişisel verileri anonim hale getirilecek ve listeden kaldırılacak."
           confirmLabel="Evet, Sil"
           onConfirm={() => { onDelete(deletingId); setDeletingId(null); }}
           onCancel={() => setDeletingId(null)}

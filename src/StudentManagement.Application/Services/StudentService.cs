@@ -73,12 +73,7 @@ internal sealed class StudentService : IStudentService
         var student = await _studentRepository.GetByIdAsync(id, ct)
             ?? throw new StudentNotFoundException(id);
 
-        // Null geçilen alanlar mevcut değeri korur
-        if (request.FirstName is not null) student.FirstName = request.FirstName;
-        if (request.LastName is not null) student.LastName = request.LastName;
-        if (request.Department is not null) student.Department = request.Department;
-        if (request.Phone is not null) student.Phone = request.Phone;
-        student.UpdatedAt = DateTimeOffset.UtcNow;
+        student.Update(request.FirstName, request.LastName, request.Department, request.Phone);
 
         await _studentRepository.UpdateAsync(student, ct);
         _logger.LogInformation("Student updated: {StudentId}.", id);

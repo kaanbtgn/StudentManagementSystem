@@ -1,27 +1,19 @@
 import { create } from 'zustand';
 import type { ChatMessage } from '@/types/agent.types';
+import type { SessionMessage } from '@/types/session.types';
 
 interface ChatState {
   messages: ChatMessage[];
   isThinking: boolean;
   isStreaming: boolean;
   currentStreamingContent: string;
-  sessionId: string;
   setThinking: (value: boolean) => void;
   appendToken: (token: string) => void;
   setAssistantMessage: (content: string) => void;
   addUserMessage: (content: string) => void;
   setError: (error: string) => void;
   clearHistory: () => void;
-}
-
-function getOrCreateSessionId(): string {
-  let id = localStorage.getItem('sessionId');
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem('sessionId', id);
-  }
-  return id;
+  loadSession: (sessionMessages: SessionMessage[]) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -29,7 +21,6 @@ export const useChatStore = create<ChatState>((set) => ({
   isThinking: false,
   isStreaming: false,
   currentStreamingContent: '',
-  sessionId: getOrCreateSessionId(),
 
   setThinking: (value) => set({ isThinking: value }),
 
@@ -85,4 +76,17 @@ export const useChatStore = create<ChatState>((set) => ({
 
   clearHistory: () =>
     set({ messages: [], isThinking: false, isStreaming: false, currentStreamingContent: '' }),
+
+  loadSession: (sessionMessages) =>
+    set({
+      messages: sessionMessages.map((m) => ({
+        id: crypto.randomUUID(),
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+      })),
+      isThinking: false,
+      isStreaming: false,
+      currentStreamingContent: '',
+    }),
 }));

@@ -33,5 +33,5 @@ export function useExamGrades(studentId: string) {
     [studentId, fetchGrades]
   );
 
-  return { grades, loading, error, upsertResult, fetchGrades, upsert };
+  return { grades, loading, error, upsertResult, fetchGrades, upsert, clearResult: () => setUpsertResult(null) };
 }

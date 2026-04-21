@@ -21,7 +21,7 @@ type FormData = z.infer<typeof schema>;
 
 export function PaymentsPage() {
   const { studentId } = useParams<{ studentId: string }>();
-  const { payments, loading, upsertResult, fetchPayments, upsert } = usePayments(studentId ?? '');
+  const { payments, loading, upsertResult, fetchPayments, upsert, clearResult } = usePayments(studentId ?? '');
   const [editing, setEditing] = useState<InternshipPaymentDto | null>(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -30,14 +30,12 @@ export function PaymentsPage() {
   useEffect(() => { if (studentId) fetchPayments(); }, [studentId, fetchPayments]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const result = await upsert(data.periodYear, data.periodMonth, {
+    await upsert(data.periodYear, data.periodMonth, {
       amount: data.amount,
       paymentDate: data.paymentDate || undefined,
     });
-    if (!result.needsHumanVerification) {
-      setShowForm(false);
-      form.reset();
-    }
+    setShowForm(false);
+    form.reset();
   });
 
   const handleEdit = (p: InternshipPaymentDto) => {
@@ -83,8 +81,8 @@ export function PaymentsPage() {
       {upsertResult?.needsHumanVerification && (
         <HumanInTheLoopModal
           items={upsertResult.ambiguousItems}
-          onConfirm={() => { setShowForm(false); fetchPayments(); }}
-          onCancel={() => {}}
+          onConfirm={() => { clearResult(); setShowForm(false); fetchPayments(); }}
+          onCancel={() => { clearResult(); setShowForm(false); form.reset(); }}
         />
       )}
     </div>

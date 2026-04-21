@@ -9,31 +9,44 @@ public sealed class Student
     public Guid Id { get; private set; }
 
     /// <summary>Öğrencinin adı.</summary>
-    public string FirstName { get; set; }
+    public string FirstName { get; private set; }
 
     /// <summary>Öğrencinin soyadı.</summary>
-    public string LastName { get; set; }
+    public string LastName { get; private set; }
 
     /// <summary>Öğrenci numarası (benzersiz).</summary>
     public string StudentNumber { get; private set; }
 
     /// <summary>Öğrencinin kayıtlı olduğu bölüm.</summary>
-    public string Department { get; set; }
+    public string Department { get; private set; }
 
     /// <summary>Öğrencinin telefon numarası (isteğe bağlı).</summary>
-    public string? Phone { get; set; }
+    public string? Phone { get; private set; }
 
     /// <summary>Öğrencinin kayıt tarihi.</summary>
     public DateOnly EnrollmentDate { get; private set; }
 
     /// <summary>Öğrenci verilerinin anonimleştirilip anonimleştirilmediğini belirtir (GDPR).</summary>
-    public bool IsAnonymized { get; set; }
+    public bool IsAnonymized { get; private set; }
 
     /// <summary>Kaydın oluşturulma zamanı (UTC).</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>Kaydın son güncellenme zamanı (UTC).</summary>
-    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>
+    /// Ad, soyad, bölüm veya telefonu günceller.
+    /// Null geçilen alanlar mevcut değeri korur.
+    /// </summary>
+    public void Update(string? firstName, string? lastName, string? department, string? phone)
+    {
+        if (firstName is not null) FirstName = firstName;
+        if (lastName is not null) LastName = lastName;
+        if (department is not null) Department = department;
+        if (phone is not null) Phone = phone;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 
     /// <summary>
     /// Öğrenci verisini KVKK kapsamında anonimleştirir.

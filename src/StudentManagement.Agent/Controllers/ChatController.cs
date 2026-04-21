@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using StudentManagement.Agent.Services;
 using StudentManagement.Agent.Services.Models;
@@ -8,6 +9,8 @@ namespace StudentManagement.Agent.Controllers;
 [Route("api/chat")]
 public sealed class ChatController : ControllerBase
 {
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
     private readonly StudentManagementAgent _agent;
     private readonly ILogger<ChatController> _logger;
 
@@ -19,7 +22,7 @@ public sealed class ChatController : ControllerBase
 
     /// <summary>
     /// Dosyasız sohbet — düz JSON.
-    /// Body: { "sessionId": "...", "message": "..." }
+    /// Body: { "message": "...", "history": [ { "role": "...", "content": "..." } ] }
     /// </summary>
     [HttpPost]
     [Consumes("application/json")]
@@ -27,9 +30,9 @@ public sealed class ChatController : ControllerBase
         [FromBody] ChatRequest request,
         CancellationToken ct)
     {
-        _logger.LogInformation("Chat isteği. Session: {SessionId}", request.SessionId);
+        _logger.LogInformation("Chat isteği alındı.");
 
-        var agentRequest = new AgentRequest(request.SessionId, request.Message);
+        var agentRequest = new AgentRequest(request.Message, request.History);
         var response = await _agent.ProcessAsync(agentRequest, ct);
 
         return Ok(response);
@@ -37,28 +40,29 @@ public sealed class ChatController : ControllerBase
 
     /// <summary>
     /// Dosyalı sohbet — multipart/form-data.
-    /// Fields: sessionId (string), message (string), file (IFormFile)
+    /// Fields: message (string), historyJson (JSON string), file (IFormFile)
     /// </summary>
     [HttpPost("document")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> ChatWithDocument(
-        [FromForm] string sessionId,
         [FromForm] string message,
+        [FromForm] string historyJson,
         IFormFile file,
         CancellationToken ct)
     {
         if (file is null || file.Length == 0)
             return BadRequest("Dosya boş veya eksik.");
 
-        _logger.LogInformation(
-            "Dosyalı chat isteği. Session: {SessionId}, Dosya: {FileName}",
-            sessionId, file.FileName);
+        _logger.LogInformation("Dosyalı chat isteği alındı. Dosya: {FileName}", file.FileName);
 
-        var agentRequest = new AgentRequest(sessionId, message, file);
+        var history = JsonSerializer.Deserialize<List<ChatHistoryEntry>>(historyJson, JsonOpts) ?? [];
+        var agentRequest = new AgentRequest(message, history, file);
         var response = await _agent.ProcessAsync(agentRequest, ct);
 
         return Ok(response);
     }
 }
 
-public sealed record ChatRequest(string SessionId, string Message);
+public sealed record ChatRequest(
+    string Message,
+    List<ChatHistoryEntry> History);

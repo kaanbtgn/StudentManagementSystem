@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ExamGradeTable } from '@/components/organisms/ExamGradeTable';
@@ -20,11 +20,11 @@ type FormData = z.infer<typeof schema>;
 
 export function ExamsPage() {
   const { studentId } = useParams<{ studentId: string }>();
-  const { grades, loading, upsertResult, fetchGrades, upsert } = useExamGrades(studentId ?? '');
+  const { grades, loading, upsertResult, fetchGrades, upsert, clearResult } = useExamGrades(studentId ?? '');
   const [editing, setEditing] = useState<ExamGradeDto | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  const form = useForm<FormData>({ resolver: zodResolver(schema) as any });
+  const form = useForm<FormData>({ resolver: zodResolver(schema) as Resolver<FormData> });
 
   useEffect(() => { if (studentId) fetchGrades(); }, [studentId, fetchGrades]);
 
@@ -33,10 +33,9 @@ export function ExamsPage() {
       exam1Grade: data.exam1Grade === '' ? undefined : (data.exam1Grade as number | undefined),
       exam2Grade: data.exam2Grade === '' ? undefined : (data.exam2Grade as number | undefined),
     });
-    if (!result.needsHumanVerification) {
-      setShowForm(false);
-      form.reset();
-    }
+    setShowForm(false);
+    form.reset();
+    if (result.needsHumanVerification) setEditing(null);
   });
 
   const handleEdit = (g: ExamGradeDto) => {
@@ -85,8 +84,8 @@ export function ExamsPage() {
       {upsertResult?.needsHumanVerification && (
         <HumanInTheLoopModal
           items={upsertResult.ambiguousItems}
-          onConfirm={() => { setShowForm(false); fetchGrades(); }}
-          onCancel={() => {}}
+          onConfirm={() => { clearResult(); setShowForm(false); fetchGrades(); }}
+          onCancel={() => { clearResult(); setShowForm(false); form.reset(); }}
         />
       )}
     </div>

@@ -33,5 +33,5 @@ export function usePayments(studentId: string) {
     [studentId, fetchPayments]
   );
 
-  return { payments, loading, error, upsertResult, fetchPayments, upsert };
+  return { payments, loading, error, upsertResult, fetchPayments, upsert, clearResult: () => setUpsertResult(null) };
 }

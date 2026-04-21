@@ -69,7 +69,10 @@ public static class DependencyInjection
         // Fuzzy matching — Agent OCR çıktısından çıkardığı ismi DB adaylarına eşleştirir
         services.AddSingleton<IFuzzyMatcher, FuzzyMatcher>();
 
-        // Agent HTTP Client
+        // Agent HTTP Client + session history (Infrastructure sahipleniyor)
+        services.AddSingleton<ChatSessionHistoryService>();
+        services.AddSingleton<ISessionHistoryService>(sp => sp.GetRequiredService<ChatSessionHistoryService>());
+
         string agentBaseUrl = configuration["Agent:BaseUrl"]
             ?? throw new InvalidOperationException("Agent:BaseUrl is not configured.");
 

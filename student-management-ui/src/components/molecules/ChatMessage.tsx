@@ -1,12 +1,52 @@
 import { cn } from '@/lib/utils';
+import axiosInstance from '@/api/axiosInstance';
 import type { ChatMessage as ChatMessageType } from '@/types/agent.types';
 
 interface ChatMessageProps {
   message: ChatMessageType;
 }
 
+// Matches /api/docs/{uuid} anywhere in text
+const DOC_URL_RE = /(\/api\/docs\/[0-9a-f-]{36})/gi;
+
+function parseMessageParts(content: string): Array<{ type: 'text'; value: string } | { type: 'download'; url: string }> {
+  const parts: Array<{ type: 'text'; value: string } | { type: 'download'; url: string }> = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  DOC_URL_RE.lastIndex = 0;
+
+  while ((match = DOC_URL_RE.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', value: content.slice(lastIndex, match.index) });
+    }
+    parts.push({ type: 'download', url: match[1] });
+    lastIndex = match.index + match[1].length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push({ type: 'text', value: content.slice(lastIndex) });
+  }
+
+  return parts.length > 0 ? parts : [{ type: 'text', value: content }];
+}
+
+async function triggerDownload(url: string) {
+  const response = await axiosInstance.get(url, { responseType: 'blob' });
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  const nameMatch = disposition?.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
+  const fileName = nameMatch?.[1] ? decodeURIComponent(nameMatch[1]) : 'belge';
+  const blob = response.data as Blob;
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const parts = isUser ? null : parseMessageParts(message.content);
 
   return (
     <div className={cn('flex gap-3', isUser ? 'justify-end' : 'justify-start')}>
@@ -28,8 +68,22 @@ export function ChatMessage({ message }: ChatMessageProps) {
             {message.content}
             <span className="ml-0.5 inline-block animate-pulse">▌</span>
           </span>
-        ) : (
+        ) : isUser || !parts ? (
           message.content
+        ) : (
+          parts.map((part, i) =>
+            part.type === 'text' ? (
+              <span key={i}>{part.value}</span>
+            ) : (
+              <button
+                key={i}
+                onClick={() => triggerDownload(part.url)}
+                className="mx-1 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 active:scale-95 transition-all"
+              >
+                ⬇ Belgeyi İndir
+              </button>
+            )
+          )
         )}
       </div>
     </div>

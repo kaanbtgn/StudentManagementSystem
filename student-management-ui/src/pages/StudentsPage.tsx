@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { StudentTable } from '@/components/organisms/StudentTable';
@@ -15,8 +15,8 @@ import { useExamGrades } from '@/hooks/useExamGrades';
 import { PaymentTable } from '@/components/organisms/PaymentTable';
 import { ExamGradeTable } from '@/components/organisms/ExamGradeTable';
 import { HumanInTheLoopModal } from '@/components/organisms/HumanInTheLoopModal';
-import type { InternshipPaymentDto, UpsertPaymentResult } from '@/types/payment.types';
-import type { ExamGradeDto, UpsertGradeResult } from '@/types/exam.types';
+import type { InternshipPaymentDto } from '@/types/payment.types';
+import type { ExamGradeDto } from '@/types/exam.types';
 
 const createSchema = z.object({
   firstName: z.string().min(1, 'Ad zorunludur'),
@@ -55,9 +55,6 @@ export function StudentsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentDto | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>('payments');
-  const [humanLoopResult, setHumanLoopResult] = useState<
-    (UpsertPaymentResult | UpsertGradeResult) | null
-  >(null);
 
   const createForm = useForm<CreateFormData>({ resolver: zodResolver(createSchema) });
   const editForm = useForm<EditFormData>({ resolver: zodResolver(editSchema) });
@@ -122,7 +119,6 @@ export function StudentsPage() {
           student={selectedStudent}
           tab={detailTab}
           onTabChange={setDetailTab}
-          onHumanLoop={setHumanLoopResult}
         />
       )}
 
@@ -159,15 +155,6 @@ export function StudentsPage() {
           </form>
         </Modal>
       )}
-
-      {/* HumanInTheLoop modal */}
-      {humanLoopResult?.needsHumanVerification && (
-        <HumanInTheLoopModal
-          items={humanLoopResult.ambiguousItems}
-          onConfirm={() => setHumanLoopResult(null)}
-          onCancel={() => setHumanLoopResult(null)}
-        />
-      )}
     </div>
   );
 }
@@ -193,23 +180,21 @@ function DetailPanel({
   student,
   tab,
   onTabChange,
-  onHumanLoop: _onHumanLoop,
 }: {
   student: StudentDto;
   tab: DetailTab;
   onTabChange: (t: DetailTab) => void;
-  onHumanLoop: (r: UpsertPaymentResult | UpsertGradeResult) => void;
 }) {
-  const { payments, loading: pLoading, fetchPayments, upsert: upsertPayment } = usePayments(student.id);
-  const { grades, loading: gLoading, fetchGrades, upsert: upsertGrade } = useExamGrades(student.id);
+  const { payments, loading: pLoading, fetchPayments, upsert: upsertPayment, upsertResult: paymentUpsertResult, clearResult: clearPaymentResult } = usePayments(student.id);
+  const { grades, loading: gLoading, fetchGrades, upsert: upsertGrade, upsertResult: gradeUpsertResult, clearResult: clearGradeResult } = useExamGrades(student.id);
 
   const [editingPayment, setEditingPayment] = useState<InternshipPaymentDto | null>(null);
   const [showAddPayment, setShowAddPayment] = useState(false);
-  const paymentForm = useForm<PaymentFormData>({ resolver: zodResolver(paymentSchema) as any });
+  const paymentForm = useForm<PaymentFormData>({ resolver: zodResolver(paymentSchema) as Resolver<PaymentFormData> });
 
   const [editingGrade, setEditingGrade] = useState<ExamGradeDto | null>(null);
   const [showAddGrade, setShowAddGrade] = useState(false);
-  const gradeForm = useForm<GradeFormData>({ resolver: zodResolver(gradeSchema) as any });
+  const gradeForm = useForm<GradeFormData>({ resolver: zodResolver(gradeSchema) as Resolver<GradeFormData> });
 
   useEffect(() => { if (tab === 'payments') fetchPayments(); }, [tab, fetchPayments]);
   useEffect(() => { if (tab === 'exams') fetchGrades(); }, [tab, fetchGrades]);
@@ -409,6 +394,21 @@ function DetailPanel({
             </div>
           </form>
         </Modal>
+      )}
+
+      {paymentUpsertResult?.needsHumanVerification && (
+        <HumanInTheLoopModal
+          items={paymentUpsertResult.ambiguousItems}
+          onConfirm={() => { clearPaymentResult(); fetchPayments(); }}
+          onCancel={() => clearPaymentResult()}
+        />
+      )}
+      {gradeUpsertResult?.needsHumanVerification && (
+        <HumanInTheLoopModal
+          items={gradeUpsertResult.ambiguousItems}
+          onConfirm={() => { clearGradeResult(); fetchGrades(); }}
+          onCancel={() => clearGradeResult()}
+        />
       )}
     </>
   );

@@ -4,8 +4,6 @@
     <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.*" />
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <PackageReference Include="Polly" Version="8.*" />
-    <PackageReference Include="MongoDB.Driver" Version="3.*" />
-    <PackageReference Include="StackExchange.Redis" Version="2.*" />
     <!-- Microsoft Agent Framework stack -->
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.*" />

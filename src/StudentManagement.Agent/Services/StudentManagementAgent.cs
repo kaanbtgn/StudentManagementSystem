@@ -5,17 +5,20 @@ using StudentManagement.Agent.Services.Prompts;
 
 namespace StudentManagement.Agent.Services;
 
+/// <summary>
+/// Saf LLM işlemcisi. Persistence bilgisi yoktur; history API katmanından gelir,
+/// güncellenmiş history cevap olarak döner.
+/// </summary>
 public sealed class StudentManagementAgent
 {
     private readonly IChatClient? _chat;
-    private readonly AzureDocumentIntelligenceService? _ocr;  // Yalnızca dosya yüklenirse kullanılır
+    private readonly AzureDocumentIntelligenceService? _ocr;
     private readonly Lazy<Task<McpClient>> _mcpClientFactory;
-    private readonly ISessionHistory? _sessionHistory;
     private readonly ILogger<StudentManagementAgent> _logger;
 
-    // MCP araç önbelleği — uygulama ömrü boyunca
-    private static readonly SemaphoreSlim _toolSemaphore = new(1, 1);
-    private static IList<McpClientTool>? _cachedTools;
+    // MCP araç önbelleği — Singleton ömür boyunca
+    private readonly SemaphoreSlim _toolSemaphore = new(1, 1);
+    private IList<McpClientTool>? _cachedTools;
 
     private const int MaxMessagesPerSession = 20;
 
@@ -23,13 +26,11 @@ public sealed class StudentManagementAgent
         Lazy<Task<McpClient>> mcpClientFactory,
         ILogger<StudentManagementAgent> logger,
         IChatClient? chat = null,
-        AzureDocumentIntelligenceService? ocr = null,
-        ISessionHistory? sessionHistory = null)
+        AzureDocumentIntelligenceService? ocr = null)
     {
         _chat = chat;
-        _ocr = ocr;  // null ise Document Intelligence yapılandırılmamış demektir
+        _ocr = ocr;
         _mcpClientFactory = mcpClientFactory;
-        _sessionHistory = sessionHistory;
         _logger = logger;
     }
 
@@ -43,8 +44,7 @@ public sealed class StudentManagementAgent
         {
             if (_ocr is null)
                 return new AgentResponse(
-                    Reply: "Dosya analizi için Azure Document Intelligence yapılandırılmamış. appsettings dosyasını kontrol edin.",
-                    OcrMetadata: null);
+                    Reply: "Dosya analizi için Azure Document Intelligence yapılandırılmamış. appsettings dosyasını kontrol edin.");
 
             _logger.LogInformation("OCR başlatılıyor: {FileName}", request.File.FileName);
             await using var stream = request.File.OpenReadStream();
@@ -60,13 +60,14 @@ public sealed class StudentManagementAgent
         // 2. MCP araçlarını al (ilk çağrıda yükle, sonraki çağrılarda önbellekten döner)
         var tools = await GetCachedToolsAsync(ct);
 
-        // 3. Konuşma geçmişini Redis'ten yükle (yoksa boş başlar)
-        var history = _sessionHistory is not null
-            ? await _sessionHistory.LoadAsync(request.SessionId, ct)
-            : [];
+        // 3. Gelen history'yi ChatMessage listesine dönüştür
+        //    System prompt yoksa ekle — Agent kendi prompt'unun sahibi
+        var history = request.History
+            .Select(e => new ChatMessage(new ChatRole(e.Role), e.Content))
+            .ToList();
 
-        if (history.Count == 0)
-            history.Add(new ChatMessage(ChatRole.System, SystemPrompt.Text));
+        if (!history.Any(m => m.Role == ChatRole.System))
+            history.Insert(0, new ChatMessage(ChatRole.System, SystemPrompt.Text));
 
         // OCR içeriği varsa kullanıcı mesajına ekle
         var userText = ocrContent is not null
@@ -77,9 +78,11 @@ public sealed class StudentManagementAgent
 
         // 4. LLM'e gönder — FunctionInvocationMiddleware tool seçimi ve çağrımı otomatik yapar
         if (_chat is null)
-            return new AgentResponse(Reply: "Azure OpenAI yapılandırılmamış. appsettings.Development.json dosyasını kontrol edin.", OcrMetadata: ocrMetadata);
+            return new AgentResponse(
+                Reply: "Azure OpenAI yapılandırılmamış. appsettings.Development.json dosyasını kontrol edin.",
+                OcrMetadata: ocrMetadata);
 
-        _logger.LogInformation("LLM çağrısı başlatılıyor. Session: {SessionId}", request.SessionId);
+        _logger.LogInformation("LLM çağrısı başlatılıyor.");
 
         var options = new ChatOptions
         {
@@ -92,16 +95,11 @@ public sealed class StudentManagementAgent
 
         var reply = completion.Text ?? string.Empty;
 
-        // 5. Yalnızca kullanıcı ve asistan yanıtını geçmişe kaydet (tool mesajları gürültü ekler)
-        history.AddMessages(completion);
+        _logger.LogInformation("Yanıt üretildi.");
 
-        // 5. Güncellenmiş geçmişi Redis'e kaydet
-        if (_sessionHistory is not null)
-            await _sessionHistory.SaveAsync(request.SessionId, history, ct);
-
-        _logger.LogInformation("Yanıt üretildi. Session: {SessionId}", request.SessionId);
-
-        return new AgentResponse(Reply: reply, OcrMetadata: ocrMetadata);
+        return new AgentResponse(
+            Reply: reply,
+            OcrMetadata: ocrMetadata);
     }
 
     // ── Yardımcı metotlar ────────────────────────────────────────────────
@@ -135,11 +133,11 @@ public sealed class StudentManagementAgent
         if (history.Count <= MaxMessagesPerSession)
             return history;
 
-        // System mesajını koru, en eski user/assistant mesajları at
+        // System mesajını koru, en eski user/assistant/tool mesajları at
         var system = history.FirstOrDefault(m => m.Role == ChatRole.System);
         var recent = history
             .Where(m => m.Role != ChatRole.System)
-            .TakeLast(MaxMessagesPerSession - 1)
+            .TakeLast(MaxMessagesPerSession - (system is null ? 0 : 1))
             .ToList();
 
         if (system is not null)
